@@ -128,7 +128,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 <div id="app">
   <div class="header">
     <div><div class="header-title">Мій бюджет</div><div class="header-sub" id="headerSub"></div></div>
-    <div style="font-size:22px;cursor:pointer" onclick="openSettings()">⚙️</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div id="syncStatus" style="font-size:10px;color:var(--text3)">☁️</div>
+      <div style="font-size:22px;cursor:pointer" onclick="openSettings()">⚙️</div>
+    </div>
   </div>
   <div class="content">
 
@@ -327,7 +330,7 @@ function loadS(){
   try{const s=localStorage.getItem('bgt3');if(s)return JSON.parse(s);}catch(e){}
   return{transactions:[],accounts:JSON.parse(JSON.stringify(DEF_ACCS)),sources:[...DEF_SRCS],savings:{uah:0,usd:0,eur:0},rates:{usd:41,eur:45},budget:0,customCats:[],rndBanks:JSON.parse(JSON.stringify(DEF_RND)),rndEntries:[]};
 }
-function save(){localStorage.setItem('bgt3',JSON.stringify(S));}
+function save(){localStorage.setItem('bgt3',JSON.stringify(S));syncToSheets();}
 function allCats(){return[...DEF_CATS,...(S.customCats||[])];}
 function catById(id){return allCats().find(c=>c.id===id)||{emoji:'💰',name:'Дохід',id:'income'};}
 function catColor(id){return CAT_COLORS[id]||'#7c6cad';}
@@ -479,6 +482,21 @@ function delCustomCat(i){if(!confirm('Видалити?'))return;S.customCats.sp
 function addRndBank(){const n=document.getElementById('newRndBank').value.trim();if(!n)return;if(!S.rndBanks)S.rndBanks=[];S.rndBanks.push({id:'rb_'+Date.now(),name:n});document.getElementById('newRndBank').value='';rRndBankList();}
 function delRndBank(i){if(!confirm('Видалити?'))return;S.rndBanks.splice(i,1);rRndBankList();}
 function saveSettings(){S.budget=parseFloat(document.getElementById('budgetInput').value)||0;save();document.getElementById('settingsOverlay').classList.remove('open');renderAll();}
+
+// ===== GOOGLE SHEETS SYNC =====
+const SHEETS_URL='https://script.google.com/macros/s/AKfycbxwfTVvsp7ABCq_4A8hEUrvyt5QU8PBBsUp6ZBtA8v_mshqztW2wZHdkrT0Jkq-5eEckw/exec';
+let syncTimer=null;
+function syncToSheets(){
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(()=>{
+    setSyncStatus('⏳ Синхронізація...');
+    fetch(SHEETS_URL,{method:'POST',body:JSON.stringify({action:'sync',state:S}),headers:{'Content-Type':'text/plain'}})
+      .then(r=>r.json())
+      .then(d=>{setSyncStatus(d.ok?'☁️ '+new Date().toLocaleTimeString('uk-UA',{hour:'2-digit',minute:'2-digit'}):'⚠️ Помилка');})
+      .catch(()=>setSyncStatus('⚠️ Офлайн'));
+  },2000);
+}
+function setSyncStatus(msg){const el=document.getElementById('syncStatus');if(el)el.textContent=msg;}
 
 function exportCSV(){
   const rows=[['Дата','Тип','Категорія','Джерело','Рахунок','Сума','Нотатка']];
